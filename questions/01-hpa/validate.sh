@@ -4,6 +4,7 @@ set -uo pipefail
 
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$DIR/../../lib/common.sh"
+require_python
 
 NS=autoscale
 NAME=apache-server
@@ -28,7 +29,10 @@ HPA_JSON=$(kubectl get hpa.v2.autoscaling "$NAME" -n "$NS" -o json 2>/dev/null) 
 get() {
   printf '%s' "$HPA_JSON" | python3 -I -c '
 import json, sys
-node = json.load(sys.stdin)
+try:
+    node = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
 for key in sys.argv[1].split("."):
     if not isinstance(node, dict) or key not in node:
         print(""); sys.exit()
@@ -43,7 +47,10 @@ cpu_target() {
   if [ -n "$v1" ]; then printf '%s' "$v1"; return; fi
   printf '%s' "$HPA_JSON" | python3 -I -c '
 import json, sys
-d = json.load(sys.stdin)
+try:
+    d = json.load(sys.stdin)
+except Exception:
+    sys.exit(0)
 for m in d.get("spec", {}).get("metrics") or []:
     r = m.get("resource") or {}
     if r.get("name") == "cpu":

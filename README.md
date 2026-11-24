@@ -1,7 +1,8 @@
 # CKA Practice — my own questions
 
-My own CKA exercises, taken from the questions I saw. Each one sets itself up
-in a real cluster, and a check script tells me PASS or FAIL per requirement.
+My own CKA exercises, taken from the questions I saw on the exam. Each one sets
+itself up in a real cluster, and a check script tells me PASS or FAIL for every
+individual requirement.
 
 ## Use it on KillerCoda
 
@@ -9,7 +10,7 @@ in a real cluster, and a check script tells me PASS or FAIL per requirement.
 2. In the terminal:
 
 ```
-git clone https://github.com/<my-user>/cka-prep.git ~/cka-prep
+git clone https://github.com/cristianarseni/cka-preparation.git ~/cka-prep
 cd ~/cka-prep
 ```
 
@@ -57,29 +58,52 @@ cat questions/01-hpa/solution.md
 
 ## Questions
 
-| #  | Topic                           | Built |
-| -- | ------------------------------- | ----- |
-| 1  | HPA                             | yes   |
-| 2  | Ingress                         | —     |
-| 3  | cri-dockerd                     | —     |
-| 4  | Resource allocation CPU/memory  | —     |
-| 5  | Sidecar                         | —     |
-| 6  | CNI Calico                      | —     |
-| 7  | StorageClass                    | —     |
-| 8  | Service                         | —     |
-| 9  | PriorityClass                   | —     |
-| 10 | Argo CD                         | —     |
-| 11 | PVC MariaDB                     | —     |
-| 12 | Migrate Ingress to Gateway API  | —     |
-| 13 | NetworkPolicy                   | —     |
-| 14 | etcd                            | —     |
-| 15 | CRDs                            | —     |
-| 16 | ConfigMap                       | —     |
+| #  | Topic                           | Setup time | Notes                              |
+| -- | ------------------------------- | ---------- | ---------------------------------- |
+| 1  | HPA                             | fast       |                                    |
+| 2  | Ingress                         | **slow**   | installs an ingress controller     |
+| 3  | cri-dockerd                     | **slow**   | needs root; installs docker + .deb |
+| 4  | Resource allocation CPU/memory  | fast       |                                    |
+| 5  | Sidecar                         | fast       |                                    |
+| 6  | CNI Calico                      | **slow**   | **breaks the cluster**             |
+| 7  | StorageClass                    | fast       |                                    |
+| 8  | Service                         | fast       |                                    |
+| 9  | PriorityClass                   | fast       |                                    |
+| 10 | Argo CD                         | **slow**   | installs helm + Argo CD            |
+| 11 | PVC MariaDB                     | fast       |                                    |
+| 12 | Migrate Ingress to Gateway API  | medium     | installs the Gateway API CRDs      |
+| 13 | NetworkPolicy                   | fast       | needs a policy-enforcing CNI       |
+| 14 | etcd / control plane repair     | fast       | **breaks the cluster**; needs root |
+| 15 | CRDs                            | medium     | installs the cert-manager CRDs     |
+| 16 | ConfigMap (TLS)                 | medium     | needs openssl; binds port 443      |
 
-## Two warnings
+## A suggested session order
 
-- **Questions 6 (CNI) and 14 (etcd) break the cluster on purpose.** Run them
-  last in a session, or on a fresh playground of their own.
-- Some questions need extra things installed first (an ingress controller,
-  Gateway API CRDs, cert-manager, Helm, the cri-dockerd .deb). Their `setup.sh`
-  installs them, so those take longer to start.
+Questions 6 and 14 destroy the cluster on purpose, so they go last — or on a
+playground of their own. Everything else can share one session:
+
+```
+1  4  5  7  8  9  11  15  →  13  2  12  16  →  10  →  3  →  6  →  14
+```
+
+Both destructive questions refuse to run unless you confirm. If you want to run
+one non-interactively:
+
+```
+CKA_CONFIRM=yes ./run.sh 6
+```
+
+## Two things that clash
+
+- **Questions 2 and 16 both want port 443 on the node.** Question 16's setup
+  scales the ingress controller down, and question 2's setup scales it back up.
+  So just re-run `./run.sh 2` if you go back to it after 16.
+- **Question 13 needs a CNI that enforces NetworkPolicy.** If its check warns
+  that a blocked Pod got through, the playground is probably running Flannel,
+  which ignores policies. Do question 6 (install Calico) first.
+
+## Requirements in the playground
+
+`kubectl`, `python3`, `curl` — all present by default. Questions 3, 14 and 16
+also need `root`, and 16 needs `openssl`. Questions 2, 3, 6, 10, 12 and 15
+download things, so the cluster needs internet access.

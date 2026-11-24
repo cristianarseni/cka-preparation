@@ -36,3 +36,23 @@ summary() {
     return 1
   fi
 }
+
+# field "$REPORT" key   -> prints the value of key=... from a key=value report.
+# Used instead of eval so that answers containing $ " ' or ` cannot be executed.
+field() {
+  printf '%s\n' "$1" | sed -n "s/^$2=//p" | head -1
+}
+
+# Where setup scripts record baseline state that validate scripts compare against.
+# Kept outside the repo so it never shows up in git status.
+STATE_DIR="${HOME}/.cka-prep-state"
+mkdir -p "$STATE_DIR" 2>/dev/null || true
+
+# The validate scripts parse JSON with python3. Fail loudly rather than cryptically.
+require_python() {
+  if ! command -v python3 >/dev/null 2>&1; then
+    echo -e "  ${RED}ERROR${NC}  python3 is not installed, so this check cannot run."
+    echo "         Install it with:  apt-get update && apt-get install -y python3"
+    exit 2
+  fi
+}

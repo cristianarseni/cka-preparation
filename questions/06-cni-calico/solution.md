@@ -23,6 +23,22 @@ ls
 
 The second file is the one people miss. See step 3.
 
+## 1b. Make the pod CIDR match the cluster
+
+`custom-resources.yaml` hard-codes the pod network as `192.168.0.0/16`. It must
+match the pod subnet the cluster was built with, or Pods get IPs from the wrong
+range.
+
+```
+k -n kube-system get cm kubeadm-config -o yaml | grep -i podSubnet
+# or
+k -n kube-system get pod -l component=kube-controller-manager -o yaml | grep cluster-cidr
+grep -n cidr custom-resources.yaml
+```
+
+If they differ, edit the `cidr:` line in `custom-resources.yaml` to the
+cluster's value **before** step 3. If they already match, change nothing.
+
 ## 2. Install the operator
 
 ```

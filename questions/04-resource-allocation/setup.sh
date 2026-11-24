@@ -5,6 +5,11 @@ echo "[setup] Question 4 - Resource allocation CPU and memory"
 
 kubectl create namespace relative-fawn --dry-run=client -o yaml | kubectl apply -f - >/dev/null
 
+# Clean start: 'kubectl apply' would keep requests added on a previous attempt,
+# leaving the task already solved. Delete and wait so the new Pods start bare.
+kubectl -n relative-fawn delete deploy wordpress --ignore-not-found --wait=true >/dev/null 2>&1
+kubectl -n relative-fawn wait --for=delete pod -l app=wordpress --timeout=60s >/dev/null 2>&1 || true
+
 # Deployed with NO resource requests at all - that is the whole point of the task.
 kubectl apply -f - >/dev/null <<'EOF'
 apiVersion: apps/v1

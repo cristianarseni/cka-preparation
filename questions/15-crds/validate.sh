@@ -36,8 +36,9 @@ else
     pass "it uses kubectl's default (table) output format"
   fi
 
-  NONCM=$(grep -cE '^[a-z0-9.-]+\.[a-z.]+ ' "$R" 2>/dev/null | head -1 || echo 0)
-  CM=$(grep -c 'cert-manager' "$R" 2>/dev/null || echo 0)
+  # grep -c prints 0 AND exits 1 on no match, so use '|| true', not '|| echo 0'
+  NONCM=$(grep -cE '^[a-z0-9.-]+\.[a-z.]+ ' "$R" 2>/dev/null || true)
+  CM=$(grep -c 'cert-manager' "$R" 2>/dev/null || true)
   if [ "${NONCM:-0}" -gt "${CM:-0}" ]; then
     echo -e "  ${YELLOW}WARN${NC}  the file seems to contain non-cert-manager CRDs too - the task asked only for cert-manager's"
   fi

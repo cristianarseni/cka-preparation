@@ -22,7 +22,8 @@ READY=$(kubectl get deploy $NAME -n $NS -o jsonpath='{.status.readyReplicas}')
 check "3 replicas are ready" "3" "${READY:-0}"
 
 DEPLOY_JSON=$(kubectl get deploy "$NAME" -n "$NS" -o json)
-NODE=$(kubectl get pods -n "$NS" -l app=wordpress -o jsonpath='{.items[0].spec.nodeName}' 2>/dev/null)
+WPOD=$(live_pod "$NS" app=wordpress)
+NODE=$([ -n "$WPOD" ] && kubectl get pod "$WPOD" -n "$NS" -o jsonpath='{.spec.nodeName}' 2>/dev/null)
 
 if [ -z "$NODE" ]; then
   fail "wordpress Pods are scheduled onto a node"

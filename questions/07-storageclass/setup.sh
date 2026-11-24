@@ -7,6 +7,22 @@ source "$DIR/../../lib/common.sh"
 echo "[setup] Question 7 - StorageClass"
 
 # The student has to create 'local-path' themselves, so make sure it is absent.
+# Some playgrounds ship their OWN 'local-path' StorageClass (often the default).
+# Save it first so cleanup.sh can put it back - other questions rely on a
+# default StorageClass. Only the first setup run saves it; re-runs keep that copy.
+ORIG="$STATE_DIR/07-local-path-original.json"
+if [ ! -f "$ORIG" ] && kubectl get storageclass local-path >/dev/null 2>&1; then
+  kubectl get storageclass local-path -o json | python3 -I -c '
+import json, sys
+sc = json.load(sys.stdin)
+md = sc["metadata"]
+for k in ("uid", "resourceVersion", "creationTimestamp", "managedFields", "generation"):
+    md.pop(k, None)
+(md.get("annotations") or {}).pop("kubectl.kubernetes.io/last-applied-configuration", None)
+print(json.dumps(sc))
+' > "$ORIG" 2>/dev/null && echo "[setup] saved the playground's own 'local-path' StorageClass (cleanup restores it)" \
+    || rm -f "$ORIG"
+fi
 kubectl delete storageclass local-path --ignore-not-found >/dev/null 2>&1
 
 # An existing default StorageClass, so that making local-path the default

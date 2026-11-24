@@ -41,8 +41,29 @@ check "Service type is NodePort" "NodePort" \
       "$(kubectl get svc front-end-svc -n $NS -o jsonpath='{.spec.type}')"
 check "Service port is 80"       "80" \
       "$(kubectl get svc front-end-svc -n $NS -o jsonpath='{.spec.ports[0].port}')"
-check "target port is 80"        "80" \
-      "$(kubectl get svc front-end-svc -n $NS -o jsonpath='{.spec.ports[0].targetPort}')"
+# targetPort may be the number 80 or the NAME of the container port (e.g. http)
+TP=$(kubectl get svc front-end-svc -n $NS -o jsonpath='{.spec.ports[0].targetPort}')
+if [ "$TP" = "80" ]; then
+  pass "target port is 80"
+else
+  NAMED=$(kubectl get deploy front-end -n $NS -o json | python3 -I -c '
+import json, sys
+try:
+    cs = json.load(sys.stdin)["spec"]["template"]["spec"]["containers"]
+except Exception:
+    sys.exit(0)
+for c in cs:
+    if c["name"] == "nginx":
+        for p in c.get("ports") or []:
+            if p.get("name") == sys.argv[1]:
+                print(p.get("containerPort")); break
+' "$TP" 2>/dev/null)
+  if [ -n "$TP" ] && [ "$NAMED" = "80" ]; then
+    pass "target port is 80  (named port '$TP' -> 80)"
+  else
+    fail "target port is 80  ${YELLOW}got:${NC} ${TP:-<empty>}"
+  fi
+fi
 
 NODEPORT=$(kubectl get svc front-end-svc -n $NS -o jsonpath='{.spec.ports[0].nodePort}')
 if [ -n "$NODEPORT" ]; then

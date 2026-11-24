@@ -3,6 +3,7 @@
 set -uo pipefail
 DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$DIR/../../lib/common.sh"
+require_python
 
 NS=nginx-static
 HOSTNAME=web.k8snginx.local
@@ -27,12 +28,14 @@ fi
 check "the ConfigMap is immutable" "true" \
       "$(kubectl get configmap nginx-config -n $NS -o jsonpath='{.immutable}')"
 
+# let a 'rollout restart' finish first, so the old Pod is not the one inspected
+kubectl -n $NS rollout status deploy nginx-static --timeout=60s >/dev/null 2>&1 || true
 READY=$(kubectl get deploy nginx-static -n $NS -o jsonpath='{.status.readyReplicas}' 2>/dev/null)
 check "the Deployment has a ready replica" "1" "${READY:-0}"
 
 # The key check: did the RUNNING Pod pick up the new config, or is it still
 # serving the old one it loaded at startup?
-POD=$(kubectl get pods -n $NS -l app=nginx-static -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+POD=$(live_pod "$NS" app=nginx-static)
 if [ -n "$POD" ]; then
   LIVE=$(kubectl exec -n $NS "$POD" -- grep -E '^\s*ssl_protocols' /etc/nginx/nginx.conf 2>/dev/null | sed 's/^[[:space:]]*//')
   if printf '%s' "$LIVE" | grep -q 'TLSv1\.2'; then

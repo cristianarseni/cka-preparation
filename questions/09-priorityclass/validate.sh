@@ -60,7 +60,8 @@ READY=$(kubectl get deploy busybox-logger -n $NS -o jsonpath='{.status.readyRepl
 check "busybox-logger has a ready replica" "1" "${READY:-0}"
 
 # the running Pod must actually carry the priority, not just the template
-POD_PC=$(kubectl get pods -n $NS -l app=busybox-logger -o jsonpath='{.items[0].spec.priorityClassName}' 2>/dev/null)
+BPOD=$(live_pod "$NS" app=busybox-logger)
+POD_PC=$([ -n "$BPOD" ] && kubectl get pod "$BPOD" -n $NS -o jsonpath='{.spec.priorityClassName}' 2>/dev/null)
 check "the running Pod carries the PriorityClass" "$PC" "$POD_PC"
 
 # other Deployments must be untouched

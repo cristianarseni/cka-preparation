@@ -26,8 +26,12 @@ except Exception:
     sys.exit(0)
 containers = {c["name"]: c for c in spec.get("containers") or []}
 volumes    = {v["name"]: v for v in spec.get("volumes") or []}
+# Native sidecars (Kubernetes 1.29+): an initContainer with restartPolicy Always
+# runs for the whole life of the Pod. That is a valid answer too.
+native = {c["name"]: c for c in spec.get("initContainers") or []
+          if c.get("restartPolicy") == "Always"}
 
-side = containers.get("sidecar")
+side = containers.get("sidecar") or native.get("sidecar")
 orig = containers.get("monitor")
 
 def mount_at(c, path):
@@ -45,7 +49,8 @@ out["side_vol"]     = mount_at(side, "/var/log")
 out["orig_vol"]     = mount_at(orig, "/var/log")
 out["orig_image"]   = (orig or {}).get("image","")
 out["vol_declared"] = "yes" if out["side_vol"] and out["side_vol"] in volumes else "no"
-out["n_containers"] = str(len(containers))
+out["n_containers"] = str(len(containers) + len(native))
+out["kind"]         = "native sidecar (initContainer, restartPolicy: Always)" if "sidecar" in native else "regular container"
 for k, v in out.items():
     print(f"{k}={v}")
 ')
@@ -59,7 +64,12 @@ R_orig_image=$(field "$REPORT" orig_image)
 R_vol_declared=$(field "$REPORT" vol_declared)
 R_n_containers=$(field "$REPORT" n_containers)
 
-check "a container named 'sidecar' was added"      "yes"            "$R_has_sidecar"
+R_kind=$(field "$REPORT" kind)
+if [ "$R_has_sidecar" = "yes" ]; then
+  pass "a container named 'sidecar' was added  ($R_kind)"
+else
+  fail "a container named 'sidecar' was added"
+fi
 check "sidecar image is busybox:stable"            "busybox:stable" "$R_side_image"
 
 CMD="$R_cmd"
@@ -89,7 +99,7 @@ fi
 
 check "the original container 'monitor' is still there" "yes"            "$R_has_monitor"
 check "the original container image is unchanged"       "busybox:stable" "$R_orig_image"
-check "the Pod has exactly 2 containers"                "2"              "$R_n_containers"
+check "the Pod has exactly 2 containers (app + sidecar)" "2"             "$R_n_containers"
 
 # rollout and real log output
 if kubectl rollout status deploy "$NAME" --timeout=90s >/dev/null 2>&1; then
@@ -98,7 +108,7 @@ else
   fail "rollout completed  ${YELLOW}run: kubectl rollout status deploy $NAME${NC}"
 fi
 
-POD=$(kubectl get pods -l app="$NAME" -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+POD=$(live_pod default app="$NAME")
 if [ -n "$POD" ] && kubectl logs "$POD" -c sidecar --tail=5 2>/dev/null | grep -q "synergy-leverager event"; then
   pass "kubectl logs -c sidecar streams the log file"
 else

@@ -58,7 +58,7 @@ check "the Deployment uses PVC 'mariadb'" "mariadb" "$CLAIM"
 READY=$(kubectl get deploy mariadb -n $NS -o jsonpath='{.status.readyReplicas}' 2>/dev/null)
 check "the Deployment has a ready replica" "1" "${READY:-0}"
 
-POD=$(kubectl get pods -n $NS -l app=mariadb -o jsonpath='{.items[0].metadata.name}' 2>/dev/null)
+POD=$(live_pod "$NS" app=mariadb)
 if [ -n "$POD" ] && kubectl logs "$POD" -n $NS --tail=30 2>/dev/null | grep -qi "ready for connections"; then
   pass "MariaDB started cleanly on the retained volume"
 else

@@ -12,6 +12,23 @@ DEB_URL="https://github.com/Mirantis/cri-dockerd/releases/download/v0.3.6/${DEB_
 if command -v docker >/dev/null 2>&1; then
   echo "[setup] docker is present: $(docker --version 2>/dev/null)"
 else
+  echo
+  echo "  ************************* WARNING *************************"
+  echo "  docker is not installed, so setup has to install docker.io."
+  echo "  On a Kubernetes node that can replace or clash with the"
+  echo "  containerd the kubelet runs on. Run this LAST in a session,"
+  echo "  or on a fresh playground of its own."
+  echo "  ***********************************************************"
+  echo
+  if [ -t 0 ]; then
+    printf "  Type 'yes' to continue: "
+    read -r ANSWER
+    [ "$ANSWER" = "yes" ] || { echo "[setup] aborted"; exit 1; }
+  elif [ "${CKA_CONFIRM:-}" != "yes" ]; then
+    echo "[setup] aborted - not running interactively."
+    echo "[setup] to run it anyway:  CKA_CONFIRM=yes ./run.sh 3"
+    exit 1
+  fi
   echo "[setup] installing docker (the task says it is already installed)..."
   apt-get update -qq >/dev/null 2>&1
   DEBIAN_FRONTEND=noninteractive apt-get install -y -qq docker.io >/dev/null 2>&1 \

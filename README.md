@@ -62,7 +62,7 @@ cat questions/01-hpa/solution.md
 | -- | ------------------------------- | ---------- | ---------------------------------- |
 | 1  | HPA                             | fast       |                                    |
 | 2  | Ingress                         | **slow**   | installs an ingress controller     |
-| 3  | cri-dockerd                     | **slow**   | needs root; installs docker + .deb |
+| 3  | cri-dockerd                     | **slow**   | needs root; may install docker - **can disturb containerd** |
 | 4  | Resource allocation CPU/memory  | fast       |                                    |
 | 5  | Sidecar                         | fast       |                                    |
 | 6  | CNI Calico                      | **slow**   | **breaks the cluster**             |
@@ -86,7 +86,11 @@ playground of their own. Everything else can share one session:
 1  4  5  7  8  9  11  15  →  13  2  12  16  →  10  →  3  →  6  →  14
 ```
 
-Both destructive questions refuse to run unless you confirm. If you want to run
+Question 3 is risky too: if docker is not already on the node, its setup installs
+`docker.io`, which can clash with the containerd the kubelet uses. Its cleanup
+turns the node's forwarding sysctls back on, so always run `./cleanup.sh 3`.
+
+These questions refuse to run unless you confirm. If you want to run
 one non-interactively:
 
 ```

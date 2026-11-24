@@ -48,6 +48,23 @@ field() {
 STATE_DIR="${HOME}/.cka-prep-state"
 mkdir -p "$STATE_DIR" 2>/dev/null || true
 
+# live_pod <namespace> <label-selector>
+# Prints the name of one Running Pod that is NOT being deleted. Right after a
+# rollout the old Pod can still be listed (Terminating), and .items[0] may pick it.
+live_pod() {
+  kubectl get pods -n "$1" -l "$2" --field-selector=status.phase=Running -o json 2>/dev/null \
+    | python3 -I -c '
+import json, sys
+try:
+    items = json.load(sys.stdin).get("items", [])
+except Exception:
+    sys.exit(0)
+for p in items:
+    if not p["metadata"].get("deletionTimestamp"):
+        print(p["metadata"]["name"]); break
+' 2>/dev/null
+}
+
 # The validate scripts parse JSON with python3. Fail loudly rather than cryptically.
 require_python() {
   if ! command -v python3 >/dev/null 2>&1; then

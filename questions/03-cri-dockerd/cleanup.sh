@@ -3,7 +3,10 @@ set -uo pipefail
 echo "[cleanup] Question 3 - cri-dockerd"
 systemctl disable --now cri-docker.service cri-docker.socket >/dev/null 2>&1
 dpkg -r cri-dockerd >/dev/null 2>&1
-rm -f /etc/sysctl.d/99-k8s.conf "$HOME/cri-dockerd_0.3.6.3-0.ubuntu-jammy_amd64.deb"
+systemctl reset-failed cri-docker.service cri-docker.socket >/dev/null 2>&1
+rm -f /etc/sysctl.d/99-k8s.conf \
+      "$HOME/cri-dockerd_0.4.9.3-0.ubuntu-noble_amd64.deb" \
+      "$HOME/cri-dockerd_0.3.6.3-0.ubuntu-jammy_amd64.deb"
 
 # Setup switched these OFF on the live node. Kubernetes networking needs them ON,
 # so put them back even if the question was never solved.

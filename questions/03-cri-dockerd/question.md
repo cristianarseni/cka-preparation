@@ -10,7 +10,7 @@ Complete the following tasks to prepare the system for Kubernetes:
 **Set up cri-dockerd:**
 
 - Install the Debian package
-  `~/cri-dockerd_0.3.6.3-0.ubuntu-jammy_amd64.deb`
+  `~/cri-dockerd_0.4.9.3-0.ubuntu-noble_amd64.deb`
   (Debian packages are installed using `dpkg`)
 - Enable and start the `cri-docker` service
 
@@ -23,3 +23,7 @@ Complete the following tasks to prepare the system for Kubernetes:
 
 Ensure these system parameters **persist after system reboot** and are
 **applied to the running system**.
+
+> **Practice note:** the exam names an older package. It is updated here to
+> v0.4.9 for Ubuntu 24.04 because older cri-dockerd versions cannot talk to the
+> Docker Engine 29 on the playground. The steps are the same.

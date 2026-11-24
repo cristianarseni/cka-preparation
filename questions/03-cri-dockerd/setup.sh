@@ -3,10 +3,18 @@
 set -uo pipefail
 echo "[setup] Question 3 - cri-dockerd"
 
-DEB_NAME=cri-dockerd_0.3.6.3-0.ubuntu-jammy_amd64.deb
-DEB_URL="https://github.com/Mirantis/cri-dockerd/releases/download/v0.3.6/${DEB_NAME}"
+# v0.4.9 for Ubuntu 24.04 (noble). The older v0.3.6 jammy package speaks Docker
+# API 1.42, which Docker Engine 29.0-29.4.0 refuses (minimum 1.44), so
+# cri-docker.service could never start on a current playground.
+DEB_NAME=cri-dockerd_0.4.9.3-0.ubuntu-noble_amd64.deb
+DEB_URL="https://github.com/Mirantis/cri-dockerd/releases/download/v0.4.9/${DEB_NAME}"
+OLD_DEB=cri-dockerd_0.3.6.3-0.ubuntu-jammy_amd64.deb
 
 [ "$(id -u)" -eq 0 ] || echo "[setup] WARNING: not running as root - package and sysctl steps may fail"
+
+# the package is built for Ubuntu 24.04 (noble)
+CODENAME=$(. /etc/os-release 2>/dev/null && echo "${VERSION_CODENAME:-unknown}")
+[ "$CODENAME" = "noble" ] || echo "[setup] WARNING: this host is '$CODENAME', the package is built for 'noble' (Ubuntu 24.04)"
 
 # --- docker must be present for cri-dockerd to have anything to talk to -------
 if command -v docker >/dev/null 2>&1; then
@@ -39,7 +47,20 @@ fi
 # --- undo a previous attempt --------------------------------------------------
 systemctl disable --now cri-docker.service cri-docker.socket >/dev/null 2>&1
 dpkg -r cri-dockerd >/dev/null 2>&1
+# a failed start is remembered by systemd - clear it so a new attempt starts clean
+systemctl reset-failed cri-docker.service cri-docker.socket >/dev/null 2>&1
 rm -f /etc/sysctl.d/99-k8s.conf /etc/sysctl.d/99-kubernetes.conf
+# the old v0.3.6 package from earlier versions of this question would not start
+rm -f "$HOME/$OLD_DEB"
+
+# cri-dockerd needs conntrack; a kubeadm node normally has it, but make sure,
+# so the practice environment cannot be what breaks the task
+if ! command -v conntrack >/dev/null 2>&1; then
+  echo "[setup] installing conntrack..."
+  apt-get update -qq >/dev/null 2>&1
+  DEBIAN_FRONTEND=noninteractive apt-get install -y -qq conntrack >/dev/null 2>&1 \
+    || echo "[setup] WARNING: could not install conntrack - cri-docker may fail to start"
+fi
 
 # --- modules the sysctls depend on --------------------------------------------
 modprobe br_netfilter 2>/dev/null || true

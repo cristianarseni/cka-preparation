@@ -11,7 +11,7 @@ echo
 if dpkg -s cri-dockerd >/dev/null 2>&1 && [ "$(dpkg -s cri-dockerd 2>/dev/null | sed -n 's/^Status: //p')" = "install ok installed" ]; then
   pass "the cri-dockerd package is installed  (version $(dpkg -s cri-dockerd 2>/dev/null | sed -n 's/^Version: //p'))"
 else
-  fail "the cri-dockerd package is installed  ${YELLOW}dpkg -i ~/cri-dockerd_0.3.6.3-0.ubuntu-jammy_amd64.deb${NC}"
+  fail "the cri-dockerd package is installed  ${YELLOW}dpkg -i ~/cri-dockerd_0.4.9.3-0.ubuntu-noble_amd64.deb${NC}"
 fi
 
 # ------------------------------------------------------------------ service
@@ -27,7 +27,14 @@ if [ "$ACTIVE" = "active" ]; then
   pass "cri-docker.service is active (running now)"
 else
   fail "cri-docker.service is active  ${YELLOW}got:${NC} $ACTIVE"
-  echo "         diagnose with:  systemctl status cri-docker  /  journalctl -u cri-docker -n 30"
+  if journalctl -u cri-docker.service -n 50 --no-pager 2>/dev/null | grep -q 'client version .* is too old'; then
+    echo "         the logs say the cri-dockerd package is too old for this Docker"
+    echo "         (Docker API version mismatch). Install the v0.4.9 package from ~/,"
+    echo "         then:  systemctl reset-failed cri-docker.service cri-docker.socket"
+    echo "                systemctl enable --now cri-docker.socket cri-docker.service"
+  else
+    echo "         diagnose with:  systemctl status cri-docker  /  journalctl -u cri-docker -n 50 --no-pager"
+  fi
 fi
 
 # ------------------------------------------------------------------ sysctls

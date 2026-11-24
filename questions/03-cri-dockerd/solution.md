@@ -5,22 +5,25 @@ parameters **twice over** — once for now, once for after reboot.
 
 ## Part 1 — install and enable cri-dockerd
 
-Check the precondition the task mentions:
+Check the precondition the task mentions — the OS and Docker:
 
 ```
+cat /etc/os-release
 docker --version
+systemctl status docker
 ```
 
-Install the package with `dpkg`, as the task specifies:
+Install the package with `dpkg`, as the task specifies (it is already in `~`):
 
 ```
-sudo dpkg -i ~/cri-dockerd_0.3.6.3-0.ubuntu-jammy_amd64.deb
+sudo dpkg -i ~/cri-dockerd_0.4.9.3-0.ubuntu-noble_amd64.deb
 ```
 
-Enable and start it in one command:
+Enable and start the socket and the service:
 
 ```
-sudo systemctl enable --now cri-docker
+sudo systemctl enable --now cri-docker.socket
+sudo systemctl enable --now cri-docker.service
 ```
 
 `enable` makes it start at boot; `--now` also starts it immediately. The task
@@ -29,11 +32,18 @@ asks for both, so `--now` saves you a second command.
 Verify:
 
 ```
-systemctl status cri-docker
+cri-dockerd --version
+systemctl is-active cri-docker.service cri-docker.socket
+systemctl is-enabled cri-docker.service cri-docker.socket
 ```
 
-Look for `enabled` on the Loaded line and `active (running)` on the Active line.
-Both, not one.
+Expect version `0.4.9`, and `active` and `enabled` for both units. Both, not one.
+
+Optional — check the CRI endpoint answers:
+
+```
+crictl --runtime-endpoint unix:///var/run/cri-dockerd.sock info
+```
 
 ## Part 2 — the four kernel parameters
 
@@ -79,6 +89,37 @@ sysctl net.netfilter.nf_conntrack_max
 
 You need both, which is why the file comes first and `sysctl --system` second.
 Doing only one of them is the usual way to half-pass this question.
+
+## Troubleshooting cri-docker
+
+If the service does not come up, read its log first:
+
+```
+journalctl -u cri-docker.service -n 50 --no-pager
+```
+
+**`client version 1.42 is too old. Minimum supported API version is 1.44`** —
+the cri-dockerd package is too old for this Docker. Docker Engine 29.0 refused
+Docker API versions below 1.44 (29.4.1 later lowered the minimum to 1.40), and
+old cri-dockerd releases such as v0.3.6 speak 1.42. Do not touch Docker: install
+the newer package over the old one, clear the failed state, and start again:
+
+```
+sudo dpkg -i ~/cri-dockerd_0.4.9.3-0.ubuntu-noble_amd64.deb
+sudo systemctl daemon-reload
+sudo systemctl reset-failed cri-docker.service cri-docker.socket
+sudo systemctl enable --now cri-docker.socket cri-docker.service
+```
+
+`reset-failed` is only needed after a failed start — systemd remembers the
+failure until you clear it.
+
+**The log says `conntrack` is missing** — install it and restart:
+
+```
+sudo apt-get install -y conntrack
+sudo systemctl restart cri-docker.service
+```
 
 ## If a sysctl says "cannot stat"
 

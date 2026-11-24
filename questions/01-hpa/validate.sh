@@ -63,7 +63,26 @@ check "targets kind Deployment"        "Deployment" "$(get spec.scaleTargetRef.k
 check "targets Deployment '$NAME'"     "$NAME"      "$(get spec.scaleTargetRef.name)"
 check "minReplicas is 1"               "1"          "$(get spec.minReplicas)"
 check "maxReplicas is 4"               "4"          "$(get spec.maxReplicas)"
-check "CPU target is 50%"              "50"         "$(cpu_target)"
+CPU_T=$(cpu_target)
+if [ "$CPU_T" = "50" ]; then
+  pass "CPU target is 50% utilization"
+else
+  # --cpu=50 (no %) creates an AverageValue target of 50m instead of 50% utilization
+  AVG=$(printf '%s' "$HPA_JSON" | python3 -I -c '
+import json, sys
+try: d = json.load(sys.stdin)
+except Exception: sys.exit(0)
+for m in d.get("spec", {}).get("metrics") or []:
+    r = m.get("resource") or {}
+    if r.get("name") == "cpu":
+        print((r.get("target") or {}).get("averageValue", "") or ""); break
+' 2>/dev/null)
+  if [ -n "$AVG" ]; then
+    fail "CPU target is 50% utilization  ${YELLOW}got averageValue: $AVG - you used --cpu=50 without the %. Use --cpu=50%${NC}"
+  else
+    fail "CPU target is 50% utilization  ${YELLOW}expected:${NC} 50  ${YELLOW}got:${NC} ${CPU_T:-<empty>}"
+  fi
+fi
 check "scaleDown stabilization is 30s" "30"         "$(get spec.behavior.scaleDown.stabilizationWindowSeconds)"
 
 summary

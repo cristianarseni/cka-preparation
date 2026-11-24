@@ -44,12 +44,31 @@ check "path is /echo"                  "/echo"       "$(field "$REPORT" path)"
 check "backend Service is echoserver-service" "echoserver-service" "$(field "$REPORT" svc)"
 check "backend Service port is 8080"   "8080"        "$(field "$REPORT" port)"
 
-# describe shows a real Pod IP in brackets only when the backend actually resolves
-BACKEND=$(kubectl describe ingress $NAME -n $NS 2>/dev/null | grep -A3 'Rules:' | grep -o 'echoserver-service:8080 ([^)]*)')
-if printf '%s' "$BACKEND" | grep -qE '\([0-9]+\.[0-9]+\.[0-9]+\.[0-9]+:[0-9]+\)'; then
-  pass "the rule resolves to a real Pod endpoint  ${BACKEND##*(}"
+# Does the rule lead to a real, ready Pod? Ask the API directly (EndpointSlices)
+# instead of parsing 'kubectl describe', whose layout shifts the backend line
+# around (the host gets its own line when a path sits beneath it).
+SVC=$(field "$REPORT" svc)
+EPS=$(kubectl get endpointslices -n $NS -l "kubernetes.io/service-name=${SVC:-none}" -o json 2>/dev/null \
+  | python3 -I -c '
+import json, sys
+try:
+    items = json.load(sys.stdin).get("items", [])
+except Exception:
+    sys.exit(0)
+out = []
+for s in items:
+    ports = [str(p.get("port")) for p in s.get("ports") or [] if p.get("port")]
+    for e in s.get("endpoints") or []:
+        if (e.get("conditions") or {}).get("ready", True) is False:
+            continue
+        for a in e.get("addresses") or []:
+            out.append(a + ":" + (ports[0] if ports else "?"))
+print(" ".join(out))
+' 2>/dev/null)
+if [ -n "$EPS" ]; then
+  pass "the rule resolves to a real Pod endpoint  ($SVC:8080 -> $EPS)"
 else
-  fail "the rule resolves to a real Pod endpoint  ${YELLOW}kubectl describe ingress $NAME -n $NS shows no Pod IP${NC}"
+  fail "the rule resolves to a real Pod endpoint  ${YELLOW}Service '${SVC:-?}' has no ready endpoints - check the Service name and that its Pod is Running${NC}"
 fi
 
 ADDR=$(kubectl get ingress $NAME -n $NS -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null)

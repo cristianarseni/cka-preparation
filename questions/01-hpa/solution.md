@@ -13,11 +13,28 @@ Confirm the Deployment `apache-server` exists and that no HPA exists yet.
 
 ```
 k autoscale deployment apache-server -n autoscale \
-  --name=apache-server --cpu-percent=50 --min=1 --max=4
+  --name=apache-server --cpu=50% --min=1 --max=4
 ```
 
 This covers three of the four requirements: the target Deployment, the 50% CPU
 target, and min 1 / max 4.
+
+**The `%` is required.** Newer kubectl uses `--cpu`, which takes two kinds of
+value:
+
+| You type      | What the HPA gets                              | Right here? |
+| ------------- | ---------------------------------------------- | ----------- |
+| `--cpu=50%`   | `type: Utilization`, `averageUtilization: 50`  | yes         |
+| `--cpu=50`    | `type: AverageValue`, `averageValue: 50m`      | **no**      |
+| `--cpu=500m`  | `type: AverageValue`, `averageValue: 500m`     | no          |
+
+Without the `%`, the number is read as millicores - 50m per pod - which is a
+completely different target.
+
+Older kubectl only has `--cpu-percent=50` (plain number, no `%`). It still works
+on newer versions, just deprecated. If `--cpu=50%` gives `unknown flag`, the
+exam's kubectl is the older one: use `--cpu-percent=50`. Check with
+`k autoscale --help | grep cpu`.
 
 ## 3. Add the downscale stabilization window
 
@@ -39,7 +56,8 @@ In the YAML confirm all four things:
 
 - `spec.scaleTargetRef` -> `kind: Deployment`, `name: apache-server`
 - `spec.minReplicas: 1` and `spec.maxReplicas: 4`
-- a cpu metric with `averageUtilization: 50`
+- a cpu metric with `type: Utilization` and `averageUtilization: 50`
+  (not `averageValue`)
 - `spec.behavior.scaleDown.stabilizationWindowSeconds: 30`
 
 ---
@@ -48,8 +66,10 @@ In the YAML confirm all four things:
 
 These are worth knowing, because each one costs you the question on the exam:
 
-1. **`--cpu=50%` is not a real flag.** The flag is `--cpu-percent=50` — a plain
-   number, no percent sign. `--cpu=50%` makes the command fail outright.
+1. **The CPU flag and its `%`.** On current kubectl `--cpu=50%` is correct.
+   Drop the `%` (`--cpu=50`) and you get a 50m AverageValue target instead of
+   50% utilization - the HPA is created, looks fine, and is wrong. On older
+   kubectl the flag is `--cpu-percent=50`, with no `%`.
 2. **`apache-server-n autoscale` is missing a space** before `-n`. kubectl reads
    this as an HPA literally named `apache-server-n`, so it reports "not found".
    This appeared in both the patch and the get command.
